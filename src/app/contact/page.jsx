@@ -3,7 +3,7 @@ import { useState } from "react";
 
 // Cambia este número por el real de WhatsApp (con código de país)
 const WHATSAPP_NUMBER = "526621234567";
-const WHATSAPP_MSG = encodeURIComponent("Hola! Me gustaría hacer un pedido 🍪");
+const WHATSAPP_MSG = encodeURIComponent("Hola! Me gustaría hacer un pedido ");
 
 export default function ContactoPage() {
   const [formData, setFormData] = useState({
@@ -49,7 +49,7 @@ export default function ContactoPage() {
             </h1>
             <p className="contacto-desc">
               Estamos aquí para ayudarte con tu pedido, resolver dudas
-              o simplemente charlar sobre galletas. 🍪
+              o simplemente charlar sobre galletas. 
             </p>
 
             {/* WhatsApp — acción principal */}

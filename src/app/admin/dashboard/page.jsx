@@ -568,13 +568,25 @@ export default function AdminDashboardPage() {
   return (
     <div className="admin-crud-container">
       <header className="admin-header">
-        <div className="header-content">
-          <h1> Panel de Administración — Spooky Cookie</h1>
-          <button className="btn-secondary" onClick={() => router.push("/")}>
-            Volver al Inicio
-          </button>
-        </div>
-      </header>
+  <div className="header-content">
+    <h1>Panel de Administración — Spooky Cookie</h1>
+    <div className="admin-header-actions">
+      <button className="btn-secondary" onClick={() => router.push("/")}>
+        Volver al Inicio
+      </button>
+      <button
+        className="btn-logout-admin"
+        onClick={() => {
+          localStorage.removeItem("usuario");
+          localStorage.removeItem("token");
+          router.push("/login");
+        }}
+      >
+        Cerrar sesión
+      </button>
+    </div>
+  </div>
+</header>
 
       {/* ── Pestañas — ahora 3 ──────────────── */}
       <div className="admin-tabs">

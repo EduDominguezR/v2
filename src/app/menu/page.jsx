@@ -26,71 +26,67 @@ export default function MenuPage() {
     fetchProductos();
   }, []);
 
-  // Verificar si el usuario está logueado y cargar el carrito al cargar el componente
+  // Verificar si el usuario está logueado y cargar el carrito
   useEffect(() => {
     const checkAuth = () => {
       const storedUser = localStorage.getItem("usuario");
       const storedCart = localStorage.getItem("spookyCart");
-      
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-      if (storedCart) {
-        setCart(JSON.parse(storedCart));
-      }
+      if (storedUser) setUser(JSON.parse(storedUser));
+      if (storedCart) setCart(JSON.parse(storedCart));
     };
     checkAuth();
   }, []);
 
   const categories = [
-    { id: "todas", name: "Todas" },
-    { id: "clasicas", name: "Clásicas" },
+    { id: "todas",    name: "Todas"     },
+    { id: "clasicas", name: "Clásicas"  },
     { id: "especiales", name: "Especiales" },
-    { id: "festivas", name: "Festivas" },
-    { id: "veganas", name: "Veganas" }
+    { id: "festivas", name: "Festivas"  },
+    { id: "veganas",  name: "Veganas"   },
   ];
 
-  const filteredItems = activeCategory === "todas" 
-    ? menuItems 
-    : menuItems.filter(item => item.category === activeCategory);
+  const filteredItems =
+    activeCategory === "todas"
+      ? menuItems
+      : menuItems.filter((item) => item.category === activeCategory);
 
   const itemsPerPage = 6;
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const totalPages   = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex   = (currentPage - 1) * itemsPerPage;
   const paginatedItems = filteredItems.slice(startIndex, startIndex + itemsPerPage);
 
   const addToCart = (item) => {
     const updatedCart = [...cart];
-    const existingItem = updatedCart.find(cartItem => cartItem.id === item.id);
-    
+    const existingItem = updatedCart.find((cartItem) => cartItem.id === item.id);
+
     if (existingItem) {
       existingItem.quantity += 1;
     } else {
-      updatedCart.push({ 
-        ...item, 
-        quantity: 1,
-        precio: item.price,
-        nombre: item.name,
+      updatedCart.push({
+        ...item,
+        quantity:    1,
+        precio:      item.price,
+        nombre:      item.name,
         descripcion: item.description,
-        imagen: item.image,
-        tipo: item.category
+        imagen:      item.image,
+        tipo:        item.category,
       });
     }
-    
+
     setCart(updatedCart);
     localStorage.setItem("spookyCart", JSON.stringify(updatedCart));
-    
-    // Efecto visual de añadir al carrito
+
     const button = document.querySelector(`[data-item-id="${item.id}"]`);
     if (button) {
-      button.classList.add('added-to-cart');
-      setTimeout(() => {
-        button.classList.remove('added-to-cart');
-      }, 1000);
+      button.classList.add("added-to-cart");
+      setTimeout(() => button.classList.remove("added-to-cart"), 1000);
     }
   };
 
-  const totalItemsInCart = cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  const totalItemsInCart = cart.reduce(
+    (total, item) => total + (item.quantity || 1),
+    0
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("usuario");
@@ -101,6 +97,7 @@ export default function MenuPage() {
 
   return (
     <div className="app-shell">
+      {/* ── Header ── */}
       <header className="header">
         <a href="/" className="logo">
           <Image src="/cookie.png" alt="SpookyCookie Logo" width={50} height={50} />
@@ -108,14 +105,11 @@ export default function MenuPage() {
         </a>
         <nav className="nav">
           <button className="pill primary">Menu</button>
-          <button 
-            className="pill ghost"
-            onClick={() => router.push("/contact")}
-          >
+          <button className="pill ghost" onClick={() => router.push("/contact")}>
             Contacto
           </button>
-          
-          <button 
+
+          <button
             className="cart-icon-btn"
             onClick={() => router.push("/cart")}
             title="Ver carrito"
@@ -123,32 +117,29 @@ export default function MenuPage() {
             <span className="cart-icon">🛒</span>
             {totalItemsInCart > 0 && (
               <span className="cart-badge">
-                {totalItemsInCart > 99 ? '99+' : totalItemsInCart}
+                {totalItemsInCart > 99 ? "99+" : totalItemsInCart}
               </span>
             )}
           </button>
 
           {user ? (
             <div className="user-section">
-              <span className="user-greeting">Hola, {user.nombre ?? user.email ?? "Usuario"}</span>
-              <button 
-                className="pill ghost"
-                onClick={handleLogout}
-              >
+              <span className="user-greeting">
+                Hola, {user.nombre ?? user.email ?? "Usuario"}
+              </span>
+              <button className="pill ghost" onClick={handleLogout}>
                 Cerrar sesión
               </button>
             </div>
           ) : (
-            <button 
-              className="pill ghost"
-              onClick={() => router.push("/login")}
-            >
+            <button className="pill ghost" onClick={() => router.push("/login")}>
               Iniciar sesión
             </button>
           )}
         </nav>
       </header>
 
+      {/* ── Main ── */}
       <main className="menu-page">
         <div className="menu-header">
           <h1 className="menu-title">SPOOKY COOKIE</h1>
@@ -157,11 +148,12 @@ export default function MenuPage() {
           </div>
         </div>
 
+        {/* Categorías */}
         <div className="menu-categories">
-          {categories.map(category => (
+          {categories.map((category) => (
             <button
               key={category.id}
-              className={`category-btn ${activeCategory === category.id ? 'active' : ''}`}
+              className={`category-btn ${activeCategory === category.id ? "active" : ""}`}
               onClick={() => {
                 setActiveCategory(category.id);
                 setCurrentPage(1);
@@ -173,42 +165,47 @@ export default function MenuPage() {
           ))}
         </div>
 
+        {/* Oferta especial */}
         <section className="special-section">
           <div className="special-badge">OFERTA</div>
-          <h2 className="special-title">🎃 Combo Halloween 🎃</h2>
+          <h2 className="special-title">Combo Halloween</h2>
           <p className="special-description">
-            Consigue nuestro pack especial de 6 galletas surtidas por solo $24.99. 
+            Consigue nuestro pack especial de 6 galletas surtidas por solo $24.99.
             Incluye una galleta misteriosa de edición limitada.
           </p>
           <button className="btn btn-primary">Añadir Combo Especial</button>
         </section>
 
+        {/* Grid de productos */}
         <div className="menu-grid">
-          {paginatedItems.map(item => (
+          {paginatedItems.map((item) => (
             <div key={item.id} className="menu-item fade-in">
               <div className="item-image-container">
-                <Image 
-                  src={item.image || "/placeholder.png"} 
-                  alt={item.name || "Producto"} 
-                  width={300} 
-                  height={200} 
+                <Image
+                  src={item.image || "/placeholder.png"}
+                  alt={item.name || "Producto"}
+                  width={300}
+                  height={200}
                   className="item-image"
                 />
               </div>
-
               <div className="item-content">
                 <div className="item-header">
                   <h3 className="item-name">{item.name || "Producto"}</h3>
-                  <div className="item-price">${(parseFloat(item.price) || 0).toFixed(2)}</div>
+                  <div className="item-price">
+                    ${(parseFloat(item.price) || 0).toFixed(2)}
+                  </div>
                 </div>
                 <p className="item-description">{item.description}</p>
                 <div className="item-ingredients">
                   {item.ingredients?.map((ingredient, index) => (
-                    <span key={index} className="ingredient-tag">{ingredient}</span>
+                    <span key={index} className="ingredient-tag">
+                      {ingredient}
+                    </span>
                   ))}
                 </div>
                 <div className="item-actions">
-                  <button 
+                  <button
                     className="btn btn-primary btn-small"
                     onClick={() => addToCart(item)}
                     data-item-id={item.id}
@@ -221,42 +218,44 @@ export default function MenuPage() {
           ))}
         </div>
 
+        {/* ── Paginación ── */}
         {totalPages > 1 && (
-          <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', padding: '1rem 1.5rem', backgroundColor: '#0f172a', borderRadius: '0.5rem', color: '#cbd5e1', border: '1px solid #1e293b', fontFamily: 'system-ui, sans-serif' }}>
-            <span style={{ fontSize: '14px' }}>Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredItems.length)} of {filteredItems.length} results</span>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button 
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
-                disabled={currentPage === 1} 
-                style={{ padding: '0.5rem 1rem', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '0.25rem', color: currentPage === 1 ? '#475569' : '#e2e8f0', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', fontSize: '14px' }}
+          <div className="pagination">
+            <span>
+              Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, filteredItems.length)} de {filteredItems.length} resultados
+            </span>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
               >
-                Previous
+                Anterior
               </button>
-              
+
               {Array.from({ length: totalPages }).map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setCurrentPage(i + 1)}
-                  style={{ padding: '0.5rem 0.75rem', backgroundColor: currentPage === i + 1 ? '#334155' : 'transparent', border: 'none', borderRadius: '0.25rem', color: currentPage === i + 1 ? '#fff' : '#cbd5e1', cursor: 'pointer', fontSize: '14px', minWidth: '32px' }}
+                  className={currentPage === i + 1 ? "active" : ""}
                 >
                   {i + 1}
                 </button>
               ))}
 
-              <button 
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
-                disabled={currentPage === totalPages} 
-                style={{ padding: '0.5rem 1rem', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '0.25rem', color: currentPage === totalPages ? '#475569' : '#e2e8f0', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', fontSize: '14px' }}
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
               >
-                Next
+                Siguiente
               </button>
             </div>
           </div>
         )}
       </main>
 
+      {/* ── Footer ── */}
       <footer className="footer">
-        © {new Date().getFullYear()} SpookyCookie 
+        © {new Date().getFullYear()} SpookyCookie
       </footer>
     </div>
   );

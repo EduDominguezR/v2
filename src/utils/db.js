@@ -1,32 +1,29 @@
+// utils/db.js
 import mariadb from "mariadb";
 
-let adminPool;
-let clientePool;
-
-const pool = (rol = "cliente") => {
-  if (rol === "admin") {
-    if (!adminPool) {
-      adminPool = mariadb.createPool({
-        host: process.env.DB_HOST || "localhost",
-        user: process.env.DB_ADMIN_USER || "r_admin",
-        password: process.env.DB_ADMIN_PASS,
-        database: process.env.DB_NAME || "reposteria",
-        connectionLimit: 5,
-      });
-    }
-    return adminPool;
-  } else {
-    if (!clientePool) {
-      clientePool = mariadb.createPool({
-        host: process.env.DB_HOST || "localhost",
-        user: process.env.DB_CLIENT_USER || "r_cliente",
-        password: process.env.DB_CLIENT_PASS,
-        database: process.env.DB_NAME || "reposteria",
-        connectionLimit: 5,
-      });
-    }
-    return clientePool;
-  }
+const configs = {
+  admin: {
+    host: "localhost",
+    user: "sc_admin",
+    password: "admin_pass_segura",
+    database: "spooky_cookie",
+  },
+  cliente: {
+    host: "localhost",
+    user: "sc_cliente",
+    password: "cliente_pass_segura",
+    database: "spooky_cookie",
+  },
 };
 
-export default pool;
+const pools = {};
+
+export default function pool(tipo = "cliente") {
+  if (!pools[tipo]) {
+    pools[tipo] = mariadb.createPool({
+      ...configs[tipo],
+      connectionLimit: 5,
+    });
+  }
+  return pools[tipo];
+}

@@ -64,7 +64,7 @@ export default function HomePage() {
 
           {/* Texto izquierda */}
           <div className="hero-text">
-            <p className="hero-eyebrow">🍪 Galletas artesanales</p>
+            <p className="hero-eyebrow"> Galletas artesanales</p>
             <h1 className="hero-question">
               ¿Qué deseas<br />
               <em className="hero-em">pedir hoy?</em>
@@ -94,10 +94,6 @@ export default function HomePage() {
                 priority
               />
             </div>
-            {/* Puntos decorativos */}
-            <span className="dot dot-1" aria-hidden />
-            <span className="dot dot-2" aria-hidden />
-            <span className="dot dot-3" aria-hidden />
           </div>
 
         </section>

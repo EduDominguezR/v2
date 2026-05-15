@@ -3,10 +3,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function PerfilPage() {
-  const [usuario, setUsuario] = useState(null);
-  const [pedidos, setPedidos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [usuario, setUsuario]     = useState(null);
+  const [pedidos, setPedidos]     = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [activeTab, setActiveTab] = useState("datos");
+
+  // ── Estado del modal de edición ──────────────
+  const [editando, setEditando]   = useState(false);
+  const [form, setForm]           = useState({ nombre: "", telefono: "", direccion: "" });
+  const [guardando, setGuardando] = useState(false);
+  const [editError, setEditError] = useState("");
+
   const router = useRouter();
 
   useEffect(() => {
@@ -15,24 +22,21 @@ export default function PerfilPage() {
         const storedUser = localStorage.getItem("usuario");
         if (storedUser) {
           const userData = JSON.parse(storedUser);
-
-          // ✅ NUEVO: Si es admin, redirigir directo al dashboard
           if (userData.rol === "admin") {
             router.replace("/admin/dashboard");
-            return; // Detiene la ejecución, no carga nada más
+            return;
           }
-
           setUsuario(userData);
-          if (userData.id_cliente) {
-            await cargarPedidosUsuario(userData.id_cliente);
-          }
+          setForm({
+            nombre:    userData.nombre    || "",
+            telefono:  userData.telefono  || "",
+            direccion: userData.direccion || "",
+          });
+          if (userData.id_cliente) await cargarPedidosUsuario(userData.id_cliente);
           setLoading(false);
           return;
         }
-
-        // Si no hay usuario en localStorage, redirigir al login
         router.replace("/login");
-
       } catch (error) {
         console.error("Error al cargar perfil:", error);
       } finally {
@@ -42,14 +46,11 @@ export default function PerfilPage() {
 
     const cargarPedidosUsuario = async (idCliente) => {
       try {
-        const response = await fetch(
-          `/api/clientes/pedidos?id_cliente=${idCliente}`,
-          { method: "GET", credentials: "include" }
-        );
-        if (response.ok) {
-          const pedidosData = await response.json();
-          setPedidos(pedidosData);
-        }
+        const response = await fetch(`/api/clientes/pedidos?id_cliente=${idCliente}`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (response.ok) setPedidos(await response.json());
       } catch (error) {
         console.error("Error al cargar pedidos:", error);
       }
@@ -58,17 +59,63 @@ export default function PerfilPage() {
     cargarPerfil();
   }, []);
 
+  // ── Abrir / cerrar modal ─────────────────────
+  const abrirEdicion = () => {
+    setForm({
+      nombre:    usuario.nombre    || "",
+      telefono:  usuario.telefono  || "",
+      direccion: usuario.direccion || "",
+    });
+    setEditError("");
+    setEditando(true);
+  };
+
+  // ── Guardar cambios ──────────────────────────
+  const handleGuardar = async (e) => {
+    e.preventDefault();
+    if (!form.nombre.trim()) {
+      setEditError("El nombre no puede estar vacío.");
+      return;
+    }
+    setGuardando(true);
+    setEditError("");
+
+    try {
+      const res = await fetch("/api/clientes/perfil", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_cliente: usuario.id_cliente,
+          nombre:     form.nombre.trim(),
+          telefono:   form.telefono.trim(),
+          direccion:  form.direccion.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error al guardar");
+
+      // Actualizar estado y localStorage
+      const usuarioActualizado = { ...usuario, ...form };
+      setUsuario(usuarioActualizado);
+      localStorage.setItem("usuario", JSON.stringify(usuarioActualizado));
+      setEditando(false);
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       localStorage.removeItem("usuario");
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.push("/login");
-    } catch (error) {
-      localStorage.removeItem("usuario");
-      router.push("/login");
-    }
+    } catch (_) {}
+    router.push("/login");
   };
 
+  // ── Loading / sin usuario ────────────────────
   if (loading) {
     return (
       <div className="loading-container">
@@ -94,6 +141,73 @@ export default function PerfilPage() {
 
   return (
     <div className="perfil-page">
+      {/* ── Modal de edición ── */}
+      {editando && (
+        <div className="edit-overlay" onClick={() => setEditando(false)}>
+          <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="edit-modal-header">
+              <h2>Editar información</h2>
+              <button className="edit-close-btn" onClick={() => setEditando(false)}>×</button>
+            </div>
+
+            <form className="edit-form" onSubmit={handleGuardar}>
+              <div className="edit-field">
+                <label htmlFor="edit-nombre">Nombre completo</label>
+                <input
+                  id="edit-nombre"
+                  type="text"
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  disabled={guardando}
+                  placeholder="Tu nombre"
+                />
+              </div>
+
+              <div className="edit-field">
+                <label htmlFor="edit-telefono">Teléfono</label>
+                <input
+                  id="edit-telefono"
+                  type="text"
+                  value={form.telefono}
+                  onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                  disabled={guardando}
+                  placeholder="Ej. 6641234567"
+                />
+              </div>
+
+              <div className="edit-field">
+                <label htmlFor="edit-direccion">Dirección</label>
+                <input
+                  id="edit-direccion"
+                  type="text"
+                  value={form.direccion}
+                  onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                  disabled={guardando}
+                  placeholder="Tu dirección"
+                />
+              </div>
+
+              {editError && <p className="edit-error">{editError}</p>}
+
+              <div className="edit-actions">
+                <button type="submit" className="btn btn-primary" disabled={guardando}>
+                  {guardando ? "Guardando..." : "Guardar cambios"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditando(false)}
+                  disabled={guardando}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header del perfil ── */}
       <div className="profile-header">
         <div className="profile-avatar">
           <div className="avatar-icon">
@@ -106,6 +220,7 @@ export default function PerfilPage() {
         </div>
       </div>
 
+      {/* ── Tabs ── */}
       <div className="profile-tabs">
         <button
           className={`tab-btn ${activeTab === "datos" ? "active" : ""}`}
@@ -151,7 +266,9 @@ export default function PerfilPage() {
             </div>
 
             <div className="profile-actions">
-              <button className="btn btn-secondary">Editar información</button>
+              <button className="btn btn-secondary" onClick={abrirEdicion}>
+                Editar información
+              </button>
               <button className="btn btn-logout" onClick={handleLogout}>
                 Cerrar sesión
               </button>
@@ -170,9 +287,7 @@ export default function PerfilPage() {
                       <div className="order-id">Pedido #{pedido.id_pedido}</div>
                       <div className="order-date">
                         {new Date(pedido.fecha_pedido).toLocaleDateString("es-ES", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
+                          day: "numeric", month: "long", year: "numeric",
                         })}
                       </div>
                     </div>
@@ -198,9 +313,7 @@ export default function PerfilPage() {
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        <p>Sin productos</p>
-                      )}
+                      ) : <p>Sin productos</p>}
                     </div>
                     <div className="order-actions">
                       <button className="btn btn-small">Ver detalles</button>
