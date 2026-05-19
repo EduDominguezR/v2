@@ -10,7 +10,7 @@ const MESES = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO",
 const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun",
                       "Jul","Ago","Sep","Oct","Nov","Dic"];
 
-const WHATSAPP_ADMIN = "526641234567"; // ← cambia este número
+const WHATSAPP_ADMIN = "526461316500"; // ← cambia este número
 
 const ESTADO_PEDIDO_MAP = {
   PENDIENTE:      { label: "Pendiente",      pill: "status-pending",     chip: "chip-pending"   },
