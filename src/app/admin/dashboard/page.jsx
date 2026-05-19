@@ -2,12 +2,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import "./calendar.css";  
-/* ── Constantes del calendario ───────────── */
+import "./calendar.css";
+
+/* ── Constantes ──────────────────────────── */
 const MESES = ["ENERO","FEBRERO","MARZO","ABRIL","MAYO","JUNIO",
                "JULIO","AGOSTO","SEPTIEMBRE","OCTUBRE","NOVIEMBRE","DICIEMBRE"];
 const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun",
                       "Jul","Ago","Sep","Oct","Nov","Dic"];
+
+const WHATSAPP_ADMIN = "526641234567"; // ← cambia este número
 
 const ESTADO_PEDIDO_MAP = {
   PENDIENTE:      { label: "Pendiente",      pill: "status-pending",     chip: "chip-pending"   },
@@ -29,10 +32,10 @@ function dateKey(dateStr) {
   return dateStr ? String(dateStr).split("T")[0] : null;
 }
 
-function groupByDate(pedidos) {
+function groupByFechaEntrega(pedidos) {
   const map = {};
   for (const p of pedidos) {
-    const key = dateKey(p.fecha_pedido);
+    const key = dateKey(p.fecha_entrega);
     if (!key) continue;
     if (!map[key]) map[key] = [];
     map[key].push(p);
@@ -46,11 +49,133 @@ function formatCurrency(n) {
   }).format(n ?? 0);
 }
 
+function formatFechaLarga(isoDate) {
+  if (!isoDate) return "—";
+  const [y, m, d] = String(isoDate).split("T")[0].split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-ES", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+}
+
+/* ── PDF ──────────────────────────────────── */
+function cargarJsPDF() {
+  return new Promise((resolve) => {
+    if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf.jsPDF);
+    document.head.appendChild(script);
+  });
+}
+
+async function generarPDFPedido(order) {
+  const jsPDF = await cargarJsPDF();
+  const doc   = new jsPDF();
+  const rosa  = [211, 74, 130];
+  const negro = [30, 30, 30];
+  const gris  = [100, 100, 100];
+
+  doc.setFillColor(...rosa);
+  doc.rect(0, 0, 210, 35, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
+  doc.text("SpookyCookie", 14, 16);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Cotizacion #${order.id_pedido}`, 14, 25);
+  doc.text(`Generada: ${new Date().toLocaleDateString("es-ES")}`, 14, 31);
+
+  let y = 48;
+  doc.setTextColor(...negro);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("Datos del cliente", 14, y); y += 7;
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...gris);
+  doc.text(`Nombre:          ${order.nombre_cliente   || "—"}`, 14, y); y += 6;
+  doc.text(`Email:           ${order.email_cliente    || "—"}`, 14, y); y += 6;
+  doc.text(`Tel:             ${order.telefono_cliente || "—"}`, 14, y); y += 6;
+  doc.text(`Fecha de pedido: ${formatFechaLarga(order.fecha_pedido)}`,  14, y); y += 6;
+  doc.text(`Fecha entrega:   ${formatFechaLarga(order.fecha_entrega)}`, 14, y); y += 10;
+
+  doc.setDrawColor(...rosa);
+  doc.setLineWidth(0.5);
+  doc.line(14, y, 196, y); y += 7;
+
+  doc.setFillColor(245, 220, 235);
+  doc.rect(14, y - 5, 182, 8, "F");
+  doc.setTextColor(...negro);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("Producto", 14, y);
+  doc.text("Cant.", 130, y);
+  doc.text("P. Unit.", 152, y);
+  doc.text("Subtotal", 175, y);
+  y += 7;
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...gris);
+  (order.items || []).forEach((it, idx) => {
+    if (idx % 2 === 0) {
+      doc.setFillColor(252, 248, 250);
+      doc.rect(14, y - 5, 182, 7, "F");
+    }
+    doc.text((it.nombre_producto || "Producto").substring(0, 40), 14, y);
+    doc.text(String(it.cantidad || 1), 133, y);
+    doc.text(`$${Number(it.precio_unitario || 0).toFixed(2)}`, 152, y);
+    doc.text(`$${(Number(it.precio_unitario || 0) * (it.cantidad || 1)).toFixed(2)}`, 175, y);
+    y += 8;
+    if (y > 260) { doc.addPage(); y = 20; }
+  });
+
+  y += 4;
+  doc.setDrawColor(...rosa);
+  doc.line(14, y, 196, y); y += 7;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...rosa);
+  doc.text(`TOTAL:  ${formatCurrency(order.total_pedido)}`, 130, y);
+  y += 18;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(...gris);
+  doc.text("Esta cotizacion fue generada por SpookyCookie.", 14, y); y += 6;
+  doc.text(`Tel: ${WHATSAPP_ADMIN}`, 14, y);
+
+  doc.save(`cotizacion-${order.id_pedido}-${dateKey(order.fecha_entrega)}.pdf`);
+}
+
+/* ── WhatsApp ─────────────────────────────── */
+function abrirWhatsAppCliente(order) {
+  const tel = order.telefono_cliente?.replace(/\D/g, "");
+  if (!tel) { alert("Este cliente no tiene teléfono registrado"); return; }
+
+  const items = (order.items || [])
+    .map(it => `• ${it.nombre_producto} x${it.cantidad} = ${formatCurrency(it.precio_unitario * it.cantidad)}`)
+    .join("\n");
+
+  const mensaje =
+`🍪 *SpookyCookie — Actualización de tu pedido*
+━━━━━━━━━━━━━━━━━━
+Hola *${order.nombre_cliente}* 👋
+Tu cotización *#${order.id_pedido}* está lista.
+
+📅 *Fecha de entrega:* ${formatFechaLarga(order.fecha_entrega)}
+*Productos:*
+${items}
+━━━━━━━━━━━━━━━━━━
+💰 *Total: ${formatCurrency(order.total_pedido)}*`;
+
+  window.open(`https://wa.me/52${tel}?text=${encodeURIComponent(mensaje)}`, "_blank");
+}
+
 /* ═══════════════════════════════════════════
-   COMPONENTE CALENDARIO (interno)
+   COMPONENTE CALENDARIO
 ═══════════════════════════════════════════ */
 function CalendarioEntregas({ orders, onUpdateEstado }) {
-  const [calDate, setCalDate]       = useState(new Date());
+  const [calDate, setCalDate]         = useState(new Date());
   const [selectedKey, setSelectedKey] = useState(null);
   const [updatingId, setUpdatingId]   = useState(null);
   const [toast, setToast]             = useState(null);
@@ -64,21 +189,15 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
   const isThisMonth    = today.getFullYear() === y && today.getMonth() === m;
   const yearMonth      = `${y}-${String(m + 1).padStart(2, "0")}`;
 
-  // Filtrar solo pedidos del mes visible
-  const pedidosMes = orders.filter(p =>
-    dateKey(p.fecha_pedido)?.startsWith(yearMonth)
-  );
-  const byDate         = groupByDate(pedidosMes);
+  const pedidosMes     = orders.filter(p => dateKey(p.fecha_entrega)?.startsWith(yearMonth));
+  const byDate         = groupByFechaEntrega(pedidosMes);
   const selectedOrders = selectedKey ? (byDate[selectedKey] ?? []) : [];
   const selectedDayNum = selectedKey ? parseInt(selectedKey.split("-")[2]) : null;
 
-  // Estadísticas del mes
-  const totalMes       = pedidosMes.length;
-  const diasEntrega    = Object.keys(byDate).length;
-  const pendientes     = pedidosMes.filter(p =>
-    String(p.estado_pedido).toUpperCase() === "PENDIENTE").length;
-  const listos         = pedidosMes.filter(p =>
-    String(p.estado_pedido).toUpperCase() === "LISTO").length;
+  const totalMes    = pedidosMes.length;
+  const diasEntrega = Object.keys(byDate).length;
+  const pendientes  = pedidosMes.filter(p => String(p.estado_pedido).toUpperCase() === "PENDIENTE").length;
+  const listos      = pedidosMes.filter(p => String(p.estado_pedido).toUpperCase() === "LISTO").length;
 
   function showToast(msg, isError = false) {
     setToast({ msg, isError });
@@ -97,22 +216,12 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
     }
   }
 
-  function prevMonth() {
-    setCalDate(new Date(y, m - 1, 1));
-    setSelectedKey(null);
-  }
-  function nextMonth() {
-    setCalDate(new Date(y, m + 1, 1));
-    setSelectedKey(null);
-  }
+  function prevMonth() { setCalDate(new Date(y, m - 1, 1)); setSelectedKey(null); }
+  function nextMonth() { setCalDate(new Date(y, m + 1, 1)); setSelectedKey(null); }
 
   return (
     <div className="cal-page-layout">
-
-      {/* ── Calendario ─────────────────────── */}
       <div className="calendar-card">
-
-        {/* Cabecera mes */}
         <div className="cal-month-header">
           <button className="cal-nav" onClick={prevMonth}>‹</button>
           <div className="cal-month-title">
@@ -120,56 +229,44 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
             <div className="year-label">{y}</div>
           </div>
           <button className="cal-nav" onClick={nextMonth}>›</button>
-          {/* Deco floral */}
           <svg className="floral-deco" width="55" height="65" viewBox="0 0 55 65" fill="none">
             <circle cx="27" cy="18" r="9" stroke="white" strokeWidth="1.8"/>
             <line x1="27" y1="27" x2="27" y2="60" stroke="white" strokeWidth="2.2"/>
-            <ellipse cx="16" cy="44" rx="7" ry="4.5" transform="rotate(-30 16 44)"
-                     stroke="white" strokeWidth="1.4"/>
-            <ellipse cx="38" cy="40" rx="7" ry="4.5" transform="rotate(30 38 40)"
-                     stroke="white" strokeWidth="1.4"/>
+            <ellipse cx="16" cy="44" rx="7" ry="4.5" transform="rotate(-30 16 44)" stroke="white" strokeWidth="1.4"/>
+            <ellipse cx="38" cy="40" rx="7" ry="4.5" transform="rotate(30 38 40)" stroke="white" strokeWidth="1.4"/>
             <circle cx="27" cy="18" r="3.5" fill="white" opacity="0.55"/>
             <circle cx="7"  cy="7"  r="2.5" stroke="white" strokeWidth="1.4"/>
             <circle cx="48" cy="55" r="2"   stroke="white" strokeWidth="1.4"/>
           </svg>
         </div>
 
-        {/* Nombres de días */}
         <div className="cal-weekdays">
           {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(d => (
             <div key={d} className="wd">{d}</div>
           ))}
         </div>
 
-        {/* Días */}
         <div className="cal-days">
           {Array.from({ length: startOffset }).map((_, i) => (
             <div key={`e-${i}`} className="cal-day empty" />
           ))}
-
           {Array.from({ length: daysInMonth }).map((_, i) => {
-            const day        = i + 1;
-            const key        = `${yearMonth}-${String(day).padStart(2, "0")}`;
-            const dayOrders  = byDate[key] || [];
+            const day         = i + 1;
+            const key         = `${yearMonth}-${String(day).padStart(2, "0")}`;
+            const dayOrders   = byDate[key] || [];
             const hasDelivery = dayOrders.length > 0;
-            const isToday    = isThisMonth && today.getDate() === day;
-            const isSelected = selectedKey === key;
-            const dow        = new Date(y, m, day).getDay();
-
+            const isToday     = isThisMonth && today.getDate() === day;
+            const isSelected  = selectedKey === key;
+            const dow         = new Date(y, m, day).getDay();
             return (
               <div
                 key={key}
-                className={[
-                  "cal-day",
-                  hasDelivery ? "has-delivery" : "",
-                  isToday    ? "today"        : "",
-                  isSelected ? "selected"     : "",
-                ].filter(Boolean).join(" ")}
+                className={["cal-day", hasDelivery ? "has-delivery" : "",
+                  isToday ? "today" : "", isSelected ? "selected" : ""]
+                  .filter(Boolean).join(" ")}
                 onClick={() => setSelectedKey(key)}
               >
-                <div className={`day-num${dow === 0 ? " sunday" : ""}`}>
-                  {day}
-                </div>
+                <div className={`day-num${dow === 0 ? " sunday" : ""}`}>{day}</div>
                 {hasDelivery && (
                   <div className="delivery-chips">
                     {dayOrders.slice(0, 2).map(o => {
@@ -182,9 +279,7 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
                       );
                     })}
                     {dayOrders.length > 2 && (
-                      <div className="delivery-chip chip-more">
-                        +{dayOrders.length - 2} más
-                      </div>
+                      <div className="delivery-chip chip-more">+{dayOrders.length - 2} más</div>
                     )}
                   </div>
                 )}
@@ -194,17 +289,13 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
         </div>
       </div>
 
-      {/* ── Sidebar ────────────────────────── */}
+      {/* ── Sidebar ─────────────────────── */}
       <aside className="cal-sidebar">
-
-        {/* Resumen mes */}
         <div className="summary-card">
-          <h2 className="card-label">
-            Resumen — {MESES_CORTOS[m]} {y}
-          </h2>
+          <h2 className="card-label">Entregas — {MESES_CORTOS[m]} {y}</h2>
           <div className="summary-stats">
             {[
-              { num: totalMes,    label: "Pedidos"          },
+              { num: totalMes,    label: "Cotizaciones"     },
               { num: diasEntrega, label: "Días con entrega" },
               { num: pendientes,  label: "Pendientes"       },
               { num: listos,      label: "Listos"           },
@@ -217,12 +308,11 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
           </div>
         </div>
 
-        {/* Detalle del día */}
         <div className="day-detail-card">
           <div className="day-detail-header">
             <h2>
               {selectedDayNum
-                ? `${selectedDayNum} de ${MESES_CORTOS[m]}`
+                ? `Entregas ${selectedDayNum} de ${MESES_CORTOS[m]}`
                 : "Selecciona un día"}
             </h2>
             <span className="day-badge">
@@ -236,47 +326,43 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
             {!selectedKey ? (
               <div className="no-deliveries">
                 <div className="nd-icon">📅</div>
-                Haz clic en un día<br />para ver sus entregas
+                Haz clic en un día<br/>para ver sus entregas
               </div>
             ) : selectedOrders.length === 0 ? (
               <div className="no-deliveries">
-                <div className="nd-icon"></div>
+                <div className="nd-icon">🍪</div>
                 Sin entregas para este día
               </div>
             ) : (
               selectedOrders.map(o => {
-                const est = String(o.estado_pedido || "").toUpperCase();
-                const pag = String(o.estado_pago   || "").toUpperCase();
-                const sp  = ESTADO_PEDIDO_MAP[est] ?? ESTADO_PEDIDO_MAP.PENDIENTE;
-                const pp  = ESTADO_PAGO_MAP[pag]   ?? ESTADO_PAGO_MAP.NO_PAGADO;
+                const est  = String(o.estado_pedido || "").toUpperCase();
+                const pag  = String(o.estado_pago   || "").toUpperCase();
+                const sp   = ESTADO_PEDIDO_MAP[est] ?? ESTADO_PEDIDO_MAP.PENDIENTE;
+                const pp   = ESTADO_PAGO_MAP[pag]   ?? ESTADO_PAGO_MAP.NO_PAGADO;
                 const busy = updatingId === o.id_pedido;
-
                 return (
-                  <div key={o.id_pedido}
-                       className={`order-item-card${busy ? " updating" : ""}`}>
+                  <div key={o.id_pedido} className={`order-item-card${busy ? " updating" : ""}`}>
                     <div className="order-item-top">
                       <div>
                         <div className="order-client">{o.nombre_cliente}</div>
-                        <div className="order-id">
-                          #{o.id_pedido} · {o.email_cliente}
-                        </div>
+                        <div className="order-id">#{o.id_pedido} · {o.email_cliente}</div>
                         {o.telefono_cliente && (
-                          <div className="order-id">{o.telefono_cliente}</div>
+                          <div className="order-id">📞 {o.telefono_cliente}</div>
                         )}
+                        <div className="order-id" style={{ color: "#c1476a", fontWeight: 600 }}>
+                          📦 Entrega: {formatFechaLarga(o.fecha_entrega)}
+                        </div>
                       </div>
                       <span className={`status-pill ${sp.pill}`}>{sp.label}</span>
                     </div>
 
-                    {/* Productos */}
                     {o.items?.length > 0 && (
                       <div className="order-items-list">
                         {o.items.map((it, idx) => (
                           <div key={idx} className="order-item-row">
                             <span>{it.nombre_producto}</span>
                             <span className="item-qty">×{it.cantidad}</span>
-                            <span className="item-price">
-                              {formatCurrency(it.precio_unitario)}
-                            </span>
+                            <span className="item-price">{formatCurrency(it.precio_unitario)}</span>
                           </div>
                         ))}
                       </div>
@@ -284,23 +370,15 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
 
                     <div className="order-totals-row">
                       <span className={`pay-pill ${pp.pillClass}`}>{pp.label}</span>
-                      <span className="order-total">
-                        {formatCurrency(o.total_pedido)}
-                      </span>
+                      <span className="order-total">{formatCurrency(o.total_pedido)}</span>
                     </div>
 
-                    {/* Selectores de estado */}
                     <div className="order-controls">
                       <div className="control-group">
                         <label className="control-label">Pedido</label>
-                        <select
-                          className={`status-select ${sp.pill}`}
-                          value={est}
+                        <select className={`status-select ${sp.pill}`} value={est}
                           disabled={busy}
-                          onChange={e =>
-                            handleUpdateEstado(o.id_pedido, "estado_pedido", e.target.value)
-                          }
-                        >
+                          onChange={e => handleUpdateEstado(o.id_pedido, "estado_pedido", e.target.value)}>
                           {Object.entries(ESTADO_PEDIDO_MAP).map(([k, v]) => (
                             <option key={k} value={k}>{v.label}</option>
                           ))}
@@ -308,19 +386,25 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
                       </div>
                       <div className="control-group">
                         <label className="control-label">Pago</label>
-                        <select
-                          className={`status-select ${pp.pillClass}`}
-                          value={pag}
+                        <select className={`status-select ${pp.pillClass}`} value={pag}
                           disabled={busy}
-                          onChange={e =>
-                            handleUpdateEstado(o.id_pedido, "estado_pago", e.target.value)
-                          }
-                        >
+                          onChange={e => handleUpdateEstado(o.id_pedido, "estado_pago", e.target.value)}>
                           {Object.entries(ESTADO_PAGO_MAP).map(([k, v]) => (
                             <option key={k} value={k}>{v.label}</option>
                           ))}
                         </select>
                       </div>
+                    </div>
+
+                    <div className="order-controls" style={{ marginTop: "0.5rem" }}>
+                      <button className="btn-edit" style={{ flex: 1 }}
+                        onClick={() => generarPDFPedido(o)}>
+                        📄 PDF
+                      </button>
+                      <button className="btn-edit" style={{ flex: 1, backgroundColor: "#25D366", color: "white", borderColor: "#25D366" }}
+                        onClick={() => abrirWhatsAppCliente(o)}>
+                        💬 WhatsApp
+                      </button>
                     </div>
                   </div>
                 );
@@ -329,7 +413,6 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
           </div>
         </div>
 
-        {/* Leyenda */}
         <div className="legend-card">
           <h3 className="card-label">Leyenda</h3>
           <div className="legend-items">
@@ -342,19 +425,15 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
               { color: "#fce8f0", border: "#c1476a", label: "Cancelado"      },
             ].map(l => (
               <div key={l.label} className="legend-item">
-                <div style={{
-                  width: 10, height: 10, borderRadius: 2, flexShrink: 0,
-                  background: l.color, border: `1px solid ${l.border}`
-                }} />
+                <div style={{ width: 10, height: 10, borderRadius: 2, flexShrink: 0,
+                  background: l.color, border: `1px solid ${l.border}` }} />
                 {l.label}
               </div>
             ))}
           </div>
         </div>
-
       </aside>
 
-      {/* Toast */}
       {toast && (
         <div className={`toast-notification${toast.isError ? " toast-error" : ""}`}>
           {toast.msg}
@@ -365,25 +444,23 @@ function CalendarioEntregas({ orders, onUpdateEstado }) {
 }
 
 /* ═══════════════════════════════════════════
-   PÁGINA PRINCIPAL — Admin Dashboard
+   PÁGINA PRINCIPAL
 ═══════════════════════════════════════════ */
 export default function AdminDashboardPage() {
-  const [menuItems, setMenuItems]   = useState([]);
-  const [orders, setOrders]         = useState([]);
-  const [editingItem, setEditingItem] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading]   = useState(true);
+  const [menuItems, setMenuItems]       = useState([]);
+  const [orders, setOrders]             = useState([]);
+  const [editingItem, setEditingItem]   = useState(null);
+  const [isModalOpen, setIsModalOpen]   = useState(false);
+  const [isLoading, setIsLoading]       = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  // ✅ Nueva pestaña "calendario"
-  const [activeTab, setActiveTab]   = useState("products");
-  const [formData, setFormData]     = useState({
+  const [activeTab, setActiveTab]       = useState("products");
+  const [formData, setFormData]         = useState({
     name: "", price: "", category: "",
     description: "", ingredients: "", image: ""
   });
 
   const router = useRouter();
 
-  /* Auth */
   useEffect(() => {
     try {
       const storedUser  = localStorage.getItem("usuario");
@@ -391,9 +468,7 @@ export default function AdminDashboardPage() {
       if (!storedUser || !storedToken) { router.replace("/login"); return; }
       const user  = JSON.parse(storedUser);
       const token = JSON.parse(atob(storedToken));
-      if (user?.rol !== "admin" || token?.rol !== "admin") {
-        router.replace("/"); return;
-      }
+      if (user?.rol !== "admin" || token?.rol !== "admin") { router.replace("/"); return; }
       setCheckingAuth(false);
     } catch {
       localStorage.removeItem("usuario");
@@ -403,10 +478,7 @@ export default function AdminDashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!checkingAuth) {
-      loadMenuItems();
-      loadOrders();
-    }
+    if (!checkingAuth) { loadMenuItems(); loadOrders(); }
   }, [checkingAuth]);
 
   const loadMenuItems = async () => {
@@ -430,30 +502,40 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       setOrders(data.pedidos || []);
     } catch {
-      alert("No se pudieron cargar los pedidos");
+      alert("No se pudieron cargar las cotizaciones");
     }
   };
 
-  /* ── Actualizar estado (usado por tabla Y calendario) ── */
   const handleUpdateEstado = useCallback(async (id_pedido, campo, valor) => {
     const body = campo === "estado_pedido"
       ? { id_pedido, estado: valor }
       : { id_pedido, estado_pago: valor };
-
     const res = await fetch("/api/admin/pedidos", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error("Error al actualizar");
-
-    // Actualización optimista local
     setOrders(prev =>
-      prev.map(p =>
-        p.id_pedido === id_pedido ? { ...p, [campo]: valor } : p
-      )
+      prev.map(p => p.id_pedido === id_pedido ? { ...p, [campo]: valor } : p)
     );
   }, []);
+
+  /* ── Eliminar cotización ── */
+  const handleDeleteOrder = async (order) => {
+    if (!confirm(`¿Eliminar cotización #${order.id_pedido} de ${order.nombre_cliente}?\nEsta acción no se puede deshacer.`)) return;
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_pedido: order.id_pedido }),
+      });
+      if (!res.ok) throw new Error();
+      setOrders(prev => prev.filter(o => o.id_pedido !== order.id_pedido));
+    } catch {
+      alert("Error al eliminar la cotización");
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -495,16 +577,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleOrderStatusChange = (orderId, newStatus) =>
-    handleUpdateEstado(orderId, "estado_pedido", newStatus)
-      .then(() => {})
-      .catch(() => alert("Error al actualizar estado"));
-
-  const handlePaymentStatusChange = (orderId, newStatus) =>
-    handleUpdateEstado(orderId, "estado_pago", newStatus)
-      .then(() => {})
-      .catch(() => alert("Error al actualizar pago"));
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     const ingredientesArray = formData.ingredients
@@ -538,12 +610,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const formatDate = (ds) =>
-    new Date(ds).toLocaleDateString("es-ES", {
-      year:"numeric", month:"long", day:"numeric",
-      hour:"2-digit", minute:"2-digit"
-    });
-
   const getStatusClass = (s) => ({
     PENDIENTE: "status-pending", CONFIRMADO: "status-confirmed",
     EN_PREPARACION: "status-preparation", LISTO: "status-ready",
@@ -568,50 +634,36 @@ export default function AdminDashboardPage() {
   return (
     <div className="admin-crud-container">
       <header className="admin-header">
-  <div className="header-content">
-    <h1>Panel de Administración — Spooky Cookie</h1>
-    <div className="admin-header-actions">
-      <button className="btn-secondary" onClick={() => router.push("/")}>
-        Volver al Inicio
-      </button>
-      <button
-        className="btn-logout-admin"
-        onClick={() => {
-          localStorage.removeItem("usuario");
-          localStorage.removeItem("token");
-          router.push("/login");
-        }}
-      >
-        Cerrar sesión
-      </button>
-    </div>
-  </div>
-</header>
+        <div className="header-content">
+          <h1>Panel de Administración — Spooky Cookie</h1>
+          <div className="admin-header-actions">
+            <button className="btn-secondary" onClick={() => router.push("/")}>
+              Volver al Inicio
+            </button>
+            <button className="btn-logout-admin" onClick={() => {
+              localStorage.removeItem("usuario");
+              localStorage.removeItem("token");
+              router.push("/login");
+            }}>
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* ── Pestañas — ahora 3 ──────────────── */}
       <div className="admin-tabs">
-        <button
-          className={`tab-button ${activeTab === "products" ? "active" : ""}`}
-          onClick={() => setActiveTab("products")}
-        >
-          Gestión de Productos
+        <button className={`tab-button ${activeTab === "products"   ? "active" : ""}`}
+          onClick={() => setActiveTab("products")}>Gestión de Productos</button>
+        <button className={`tab-button ${activeTab === "orders"     ? "active" : ""}`}
+          onClick={() => setActiveTab("orders")}>
+          Cotizaciones ({orders.length})
         </button>
-        <button
-          className={`tab-button ${activeTab === "orders" ? "active" : ""}`}
-          onClick={() => setActiveTab("orders")}
-        >
-          Gestión de Pedidos ({orders.length})
-        </button>
-        {/* ✅ Nueva pestaña */}
-        <button
-          className={`tab-button ${activeTab === "calendario" ? "active" : ""}`}
-          onClick={() => setActiveTab("calendario")}
-        >
+        <button className={`tab-button ${activeTab === "calendario" ? "active" : ""}`}
+          onClick={() => setActiveTab("calendario")}>
           📅 Calendario de Entregas
         </button>
       </div>
 
-      {/* ── Stats (solo en productos y pedidos) ── */}
       {activeTab !== "calendario" && (
         <main className="admin-main">
           <div className="stats-grid">
@@ -620,11 +672,11 @@ export default function AdminDashboardPage() {
               <p className="stat-number">{menuItems.length}</p>
             </div>
             <div className="stat-card">
-              <h3>Total Pedidos</h3>
+              <h3>Total Cotizaciones</h3>
               <p className="stat-number">{orders.length}</p>
             </div>
             <div className="stat-card">
-              <h3>Pedidos Pendientes</h3>
+              <h3>Pendientes</h3>
               <p className="stat-number">
                 {orders.filter(o =>
                   !["LISTO","ENTREGADO"].includes(String(o.estado_pedido||"").toUpperCase())
@@ -641,16 +693,13 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* ── PRODUCTOS ────────────────────── */}
+          {/* ── PRODUCTOS ─── */}
           {activeTab === "products" && (
             <>
               <div className="action-bar">
-                <button className="btn-primary" onClick={handleCreate}>
-                  + Agregar Producto
-                </button>
+                <button className="btn-primary" onClick={handleCreate}>+ Agregar Producto</button>
                 <div className="search-bar">
-                  <input type="text" placeholder="Buscar productos..."
-                         className="search-input" />
+                  <input type="text" placeholder="Buscar productos..." className="search-input" />
                 </div>
               </div>
               <div className="table-container">
@@ -674,18 +723,13 @@ export default function AdminDashboardPage() {
                           <td>
                             <div className="product-image-cell">
                               <Image src={item.image || "/default-cookie.png"}
-                                     alt={item.name || "Producto"}
-                                     width={100} height={100}
-                                     className="product-thumbnail" />
+                                alt={item.name || "Producto"} width={100} height={100}
+                                className="product-thumbnail" />
                             </div>
                           </td>
                           <td><strong>{item.name}</strong></td>
-                          <td><span className="price-tag">
-                            ${Number(item.price||0).toFixed(2)}
-                          </span></td>
-                          <td><span className={`category-tag ${item.category||""}`}>
-                            {item.category}
-                          </span></td>
+                          <td><span className="price-tag">${Number(item.price||0).toFixed(2)}</span></td>
+                          <td><span className={`category-tag ${item.category||""}`}>{item.category}</span></td>
                           <td><div className="description-cell">{item.description}</div></td>
                           <td><div className="ingredients-cell">
                             {Array.isArray(item.ingredients)
@@ -695,12 +739,8 @@ export default function AdminDashboardPage() {
                           </div></td>
                           <td>
                             <div className="action-buttons">
-                              <button className="btn-edit" onClick={() => handleEdit(item)}>
-                                Editar
-                              </button>
-                              <button className="btn-delete" onClick={() => handleDelete(item.id)}>
-                                Eliminar
-                              </button>
+                              <button className="btn-edit" onClick={() => handleEdit(item)}>Editar</button>
+                              <button className="btn-delete" onClick={() => handleDelete(item.id)}>Eliminar</button>
                             </div>
                           </td>
                         </tr>
@@ -712,44 +752,62 @@ export default function AdminDashboardPage() {
             </>
           )}
 
-          {/* ── PEDIDOS ──────────────────────── */}
+          {/* ── COTIZACIONES ─── */}
           {activeTab === "orders" && (
             <>
               <div className="action-bar">
                 <button className="btn-secondary" onClick={loadOrders}>
-                  ↻ Actualizar Pedidos
+                  ↻ Actualizar cotizaciones
                 </button>
               </div>
               <div className="table-container">
                 {orders.length === 0 ? (
                   <div className="empty-state">
-                    <h3>No hay pedidos registrados</h3>
-                    <p>Los pedidos aparecerán aquí cuando los clientes compren</p>
+                    <h3>No hay cotizaciones registradas</h3>
+                    <p>Aparecerán aquí cuando los clientes envíen su cesta</p>
                   </div>
                 ) : (
                   <table className="orders-table">
                     <thead>
                       <tr>
-                        <th>ID</th><th>Fecha</th><th>Cliente</th>
-                        <th>Productos</th><th>Total</th>
-                        <th>Estado Pedido</th><th>Estado Pago</th><th>Acciones</th>
+                        <th>ID</th>
+                        <th>Fecha Pedido</th>
+                        <th>Fecha Entrega</th>
+                        <th>Cliente</th>
+                        <th>Productos</th>
+                        <th>Total</th>
+                        <th>Estado</th>
+                        <th>Pago</th>
+                        <th>Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {orders.map(order => (
                         <tr key={order.id_pedido}>
                           <td><strong>#{order.id_pedido}</strong></td>
-                          <td>{formatDate(order.fecha_pedido)}</td>
+                          <td style={{ fontSize: "0.82rem" }}>
+                            {formatFechaLarga(order.fecha_pedido)}
+                          </td>
+                          <td>
+                            <span style={{
+                              color: "#c1476a", fontWeight: 700,
+                              fontSize: "0.85rem", whiteSpace: "nowrap"
+                            }}>
+                              📦 {formatFechaLarga(order.fecha_entrega)}
+                            </span>
+                          </td>
                           <td>
                             <strong>{order.nombre_cliente}</strong><br/>
-                            {order.email_cliente}<br/>
-                            {order.telefono_cliente}
+                            <span style={{ fontSize: "0.8rem" }}>{order.email_cliente}</span><br/>
+                            {order.telefono_cliente && (
+                              <span style={{ fontSize: "0.8rem" }}>📞 {order.telefono_cliente}</span>
+                            )}
                           </td>
                           <td>
                             <div className="order-items">
-                              {order.items?.map((it,idx) => (
+                              {order.items?.map((it, idx) => (
                                 <div key={idx} className="order-item">
-                                  {it.cantidad}x {it.nombre_producto}
+                                  {it.cantidad}× {it.nombre_producto}
                                 </div>
                               ))}
                             </div>
@@ -763,7 +821,10 @@ export default function AdminDashboardPage() {
                             <select
                               value={String(order.estado_pedido||"PENDIENTE").toUpperCase()}
                               className={`status-select ${getStatusClass(order.estado_pedido)}`}
-                              onChange={e => handleOrderStatusChange(order.id_pedido, e.target.value)}
+                              onChange={e =>
+                                handleUpdateEstado(order.id_pedido, "estado_pedido", e.target.value)
+                                  .catch(() => alert("Error al actualizar estado"))
+                              }
                             >
                               {Object.entries(ESTADO_PEDIDO_MAP).map(([k,v]) => (
                                 <option key={k} value={k}>{v.label}</option>
@@ -774,7 +835,10 @@ export default function AdminDashboardPage() {
                             <select
                               value={String(order.estado_pago||"NO_PAGADO").toUpperCase()}
                               className={`status-select ${getPaymentStatusClass(order.estado_pago)}`}
-                              onChange={e => handlePaymentStatusChange(order.id_pedido, e.target.value)}
+                              onChange={e =>
+                                handleUpdateEstado(order.id_pedido, "estado_pago", e.target.value)
+                                  .catch(() => alert("Error al actualizar pago"))
+                              }
                             >
                               {Object.entries(ESTADO_PAGO_MAP).map(([k,v]) => (
                                 <option key={k} value={k}>{v.label}</option>
@@ -782,10 +846,25 @@ export default function AdminDashboardPage() {
                             </select>
                           </td>
                           <td>
-                            <button className="btn-edit"
-                              onClick={() => setActiveTab("calendario")}>
-                              📅 Ver en calendario
-                            </button>
+                            <div className="action-buttons" style={{ flexDirection: "column", gap: "0.35rem" }}>
+                              <button className="btn-edit"
+                                onClick={() => generarPDFPedido(order)}>
+                                📄 PDF
+                              </button>
+                              <button className="btn-edit"
+                                style={{ backgroundColor: "#25D366", color: "white", borderColor: "#25D366" }}
+                                onClick={() => abrirWhatsAppCliente(order)}>
+                                💬 WhatsApp
+                              </button>
+                              <button className="btn-edit"
+                                onClick={() => setActiveTab("calendario")}>
+                                📅 Calendario
+                              </button>
+                              <button className="btn-delete"
+                                onClick={() => handleDeleteOrder(order)}>
+                                🗑 Eliminar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -798,12 +877,8 @@ export default function AdminDashboardPage() {
         </main>
       )}
 
-      {/* ── CALENDARIO ───────────────────────── */}
       {activeTab === "calendario" && (
-        <CalendarioEntregas
-          orders={orders}
-          onUpdateEstado={handleUpdateEstado}
-        />
+        <CalendarioEntregas orders={orders} onUpdateEstado={handleUpdateEstado} />
       )}
 
       {/* Modal productos */}
@@ -816,19 +891,19 @@ export default function AdminDashboardPage() {
                 <div className="form-group">
                   <label>Nombre *</label>
                   <input type="text" name="name" value={formData.name}
-                         onChange={handleInputChange} required />
+                    onChange={handleInputChange} required />
                 </div>
                 <div className="form-group">
                   <label>Precio ($) *</label>
                   <input type="number" name="price" step="0.01" min="0"
-                         value={formData.price} onChange={handleInputChange} required />
+                    value={formData.price} onChange={handleInputChange} required />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label>Categoría *</label>
                   <select name="category" value={formData.category}
-                          onChange={handleInputChange} required>
+                    onChange={handleInputChange} required>
                     <option value="">Seleccionar categoría</option>
                     <option value="clasicas">Clásicas</option>
                     <option value="especiales">Especiales</option>
@@ -840,25 +915,23 @@ export default function AdminDashboardPage() {
                 <div className="form-group">
                   <label>URL de la Imagen *</label>
                   <input type="url" name="image" value={formData.image}
-                         onChange={handleInputChange} required />
+                    onChange={handleInputChange} required />
                 </div>
               </div>
               <div className="form-group">
                 <label>Descripción *</label>
                 <textarea name="description" value={formData.description}
-                          onChange={handleInputChange} required />
+                  onChange={handleInputChange} required />
               </div>
               <div className="form-group">
                 <label>Ingredientes *</label>
                 <textarea name="ingredients" value={formData.ingredients}
-                          onChange={handleInputChange} required />
+                  onChange={handleInputChange} required />
                 <small>Separar con comas (,)</small>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn-secondary"
-                        onClick={() => setIsModalOpen(false)}>
-                  Cancelar
-                </button>
+                  onClick={() => setIsModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary">
                   {editingItem ? "Actualizar" : "Crear Producto"}
                 </button>

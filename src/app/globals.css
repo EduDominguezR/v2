@@ -1729,16 +1729,21 @@ body:has(.login-form) > div {
 }
 
 
-/* ── Sección de fecha de entrega ── */
+/* ==================================================
+   CALENDARIO — SOLO OVERRIDES
+   No modifica header, footer ni estilos globales
+   ================================================== */
+
 .delivery-section {
   margin-top: 1.5rem;
-  padding: 1.5rem;
+  padding: 1.25rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  box-shadow: var(--shadow-xs);
 }
 
 .delivery-header h2 {
@@ -1746,49 +1751,59 @@ body:has(.login-form) > div {
   font-size: 1rem;
   font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
-.delivery-hint { font-size: 0.8125rem; color: var(--text-muted); }
+.delivery-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
 
 .delivery-toggle-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.25rem;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
   border-radius: var(--radius-full);
-  border: 2px dashed var(--border);
+  border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-muted);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition), box-shadow var(--transition);
 }
+
 .delivery-toggle-btn:hover {
+  background: var(--surface-soft);
   border-color: var(--primary-mid);
-  color: var(--primary);
+  color: var(--text);
 }
+
 .delivery-toggle-btn.has-date {
-  border-style: solid;
   border-color: var(--primary-mid);
   background: var(--primary-light);
   color: var(--primary);
   font-weight: 600;
 }
-.toggle-chevron { font-size: 0.75rem; opacity: 0.6; }
 
-/* ── Wrapper del calendario ── */
+.toggle-chevron {
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+
 .datepicker-wrapper {
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   overflow: hidden;
+  background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
 
-/* ── Calendario ── */
 .datepicker {
   background: var(--surface);
-  padding: 1.25rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
@@ -1798,31 +1813,41 @@ body:has(.login-form) > div {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
 }
+
 .dp-arrow {
-  background: none;
-  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
   font-size: 0.875rem;
-  color: var(--primary);
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-md);
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
-.dp-arrow:hover { background: var(--primary-light); }
+
+.dp-arrow:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-mid);
+  color: var(--primary);
+}
 
 .dp-month {
   font-family: 'Syne', sans-serif;
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--text);
   letter-spacing: 0.04em;
+  text-align: center;
+  flex: 1;
 }
 
 .dp-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 3px;
+  gap: 4px;
 }
 
 .dp-weekday {
@@ -1847,21 +1872,30 @@ body:has(.login-form) > div {
   cursor: pointer;
   background: none;
   color: var(--text);
-  transition: all var(--transition);
+  transition: background var(--transition), color var(--transition), transform var(--transition);
   position: relative;
 }
+
 .dp-day:hover:not(.dp-day--disabled) {
   background: var(--primary-light);
   color: var(--primary);
 }
 
-.dp-day--pasado   { color: var(--text-faint); cursor: not-allowed; }
-.dp-day--disabled { opacity: 0.4; cursor: not-allowed; }
+.dp-day--pasado {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.dp-day--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .dp-day--por_cerrar {
   background: #fff3e0;
   color: #b07a00;
 }
+
 .dp-day--por_cerrar::after {
   content: "";
   position: absolute;
@@ -1878,6 +1912,7 @@ body:has(.login-form) > div {
   background: #fce4ec;
   color: #c2185b;
 }
+
 .dp-day--cerrado {
   background: #fde8ea;
   color: #b02a32;
@@ -1886,12 +1921,11 @@ body:has(.login-form) > div {
 
 .dp-day--selected {
   background: var(--primary) !important;
-  color: white !important;
+  color: #fff !important;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(180,80,100,0.35);
+  box-shadow: 0 2px 10px rgba(180, 80, 100, 0.22);
 }
 
-/* Leyenda */
 .dp-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1899,6 +1933,7 @@ body:has(.login-form) > div {
   padding-top: 0.5rem;
   border-top: 1px solid var(--divider);
 }
+
 .dp-legend-item {
   display: flex;
   align-items: center;
@@ -1906,30 +1941,56 @@ body:has(.login-form) > div {
   font-size: 0.7rem;
   color: var(--text-muted);
 }
+
 .dp-dot {
-  width: 10px; height: 10px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   display: inline-block;
 }
-.dot-porcerrar  { background: #e8a000; }
-.dot-festivo    { background: #c2185b; }
-.dot-cerrado    { background: #b02a32; }
-.dot-disponible { background: #2d9e5f; }
 
+.dot-porcerrar {
+  background: #e8a000;
+}
 
-/* ── Confirmación de fecha seleccionada ── */
+.dot-festivo {
+  background: #c2185b;
+}
+
+.dot-cerrado {
+  background: #b02a32;
+}
+
+.dot-disponible {
+  background: #2d9e5f;
+}
+
 .delivery-confirmed {
   display: flex;
   align-items: center;
   gap: 0.875rem;
-  padding: 0.875rem 1.25rem;
+  padding: 0.875rem 1rem;
   background: #edf7f2;
   border: 1px solid #b7e4cb;
   border-radius: var(--radius-lg);
 }
-.delivery-confirmed-icon { font-size: 1.25rem; flex-shrink: 0; }
-.delivery-confirmed strong { font-size: 0.9375rem; color: #1a6b3f; }
-.delivery-confirmed p { font-size: 0.8125rem; color: #2d9e5f; margin: 0; }
+
+.delivery-confirmed-icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.delivery-confirmed strong {
+  font-size: 0.9375rem;
+  color: #1a6b3f;
+}
+
+.delivery-confirmed p {
+  font-size: 0.8125rem;
+  color: #2d9e5f;
+  margin: 0;
+}
+
 .delivery-change-btn {
   margin-left: auto;
   font-size: 0.8125rem;
@@ -1939,11 +2000,13 @@ body:has(.login-form) > div {
   border-radius: var(--radius-full);
   padding: 4px 12px;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
-.delivery-change-btn:hover { background: #d4f0e2; }
 
-/* ── Hint en el summary ── */
+.delivery-change-btn:hover {
+  background: #d4f0e2;
+}
+
 .date-required-hint {
   font-size: 0.8125rem;
   color: #b07a00;
@@ -1952,6 +2015,14 @@ body:has(.login-form) > div {
   border-radius: var(--radius-md);
   padding: 0.625rem 1rem;
   text-align: center;
+}
+
+.summary-date {
+  font-size: 0.8125rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-align: right;
+  max-width: 140px;
 }
 
 .summary-date {

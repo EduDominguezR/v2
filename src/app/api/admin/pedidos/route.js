@@ -115,3 +115,38 @@ export async function PUT(req) {
     );
   }
 }
+// DELETE - Eliminar cotización/pedido
+export async function DELETE(req) {
+  try {
+    const { id_pedido } = await req.json();
+
+    if (!id_pedido) {
+      return Response.json(
+        { message: "id_pedido es requerido" },
+        { status: 400 }
+      );
+    }
+
+    const conn = await pool("admin").getConnection();
+
+    // Primero borrar detalles (FK), luego el pedido
+    await conn.query(
+      `DELETE FROM detalle_pedido WHERE id_pedido = ?`,
+      [id_pedido]
+    );
+    await conn.query(
+      `DELETE FROM pedido WHERE id_pedido = ?`,
+      [id_pedido]
+    );
+
+    conn.release();
+    return Response.json({ message: "Cotización eliminada correctamente" });
+
+  } catch (error) {
+    console.error("Error en DELETE /admin/pedidos:", error);
+    return Response.json(
+      { message: "Error al eliminar la cotización", error: error.message },
+      { status: 500 }
+    );
+  }
+}
