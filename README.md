@@ -1,8 +1,9 @@
-# 🍪 SpookyCookie
+# SpookyCookie
 
-**SpookyCookie** es una tienda web moderna de galletas artesanales hecha con **Next.js**, pensada para mostrar productos, gestionar pedidos y ofrecer una experiencia visual elegante, dulce y funcional.
+**SpookyCookie** Tienda web de galletas artesanales hecha con **Next.js** y **React**.  
+Proyecto diseñado para mostrar productos, gestionar pedidos y ofrecer una experiencia moderna, dulce y responsiva..
 
-![SpookyCookie](./public/logo.png)
+![SpookyCookie](./public/cookie.png)
 
 ---
 
