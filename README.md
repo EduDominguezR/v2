@@ -19,14 +19,16 @@ Proyecto diseñado para mostrar productos, gestionar pedidos y ofrecer una exper
 
 ---
 
-## 🛠️ Tecnologías
+## 🛠️ Tecnologías principales 
 
-- **Next.js**
-- **React**
-- **JavaScript**
-- **CSS Modules / Global CSS**
-- **MariaDB / MySQL**
-- **bcryptjs**
-- **Node.js**
+| Tecnología | Descripción |
+|---|---|
+| Next.js | Framework principal para React |
+| React | Construcción de la interfaz |
+| JavaScript | Lógica del proyecto |
+| CSS Modules / Global CSS | Estilos y diseño responsivo |
+| Node.js | Entorno de ejecución |
+| MariaDB / MySQL | Base de datos |
+| bcryptjs | Encriptación de contraseñas |
 
 ---
