@@ -302,17 +302,12 @@ a { color: inherit; text-decoration: none; }
   position: relative;
 }
 
-.hero-image-ring {
-  width: clamp(260px, 32vw, 400px);
-  height: clamp(260px, 32vw, 400px);
+.hero-logo-img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
   border-radius: 50%;
-  background: radial-gradient(circle, #fce4ec 0%, #fdf0f4 55%, transparent 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
-
-.hero-logo-img { object-fit: contain; }
 
 .dot { position: absolute; border-radius: 50%; pointer-events: none; }
 .dot-1 { width: 10px; height: 10px; background: var(--primary); opacity: 0.45; top: 22%; right: 6%; }

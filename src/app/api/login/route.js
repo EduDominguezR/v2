@@ -2,6 +2,7 @@
 import pool from "@/utils/db";
 import bcrypt from "bcryptjs";
 
+// ─── LOGIN ───────────────────────────────────────────────────────────────────
 export async function POST(req) {
   try {
     const { usuario, password } = await req.json();
@@ -15,7 +16,6 @@ export async function POST(req) {
 
     const conn = await pool("admin").getConnection();
 
-    // Busca por correo o nombre
     const rows = await conn.query(
       `SELECT id_cliente, nombre, correo, telefono, direccion, contraseña, rol
        FROM cliente
@@ -42,7 +42,6 @@ export async function POST(req) {
       );
     }
 
-    // No enviar la contraseña al front
     const { contraseña: _, ...clienteSinPass } = cliente;
 
     return Response.json({
@@ -55,6 +54,63 @@ export async function POST(req) {
 
   } catch (error) {
     console.error("Error en /api/login:", error);
+    return Response.json(
+      { success: false, message: "Error en el servidor" },
+      { status: 500 }
+    );
+  }
+}
+
+// ─── CAMBIAR CONTRASEÑA ───────────────────────────────────────────────────────
+export async function PUT(req) {
+  try {
+    const { correo, nuevaContrasena } = await req.json();
+
+    if (!correo || !nuevaContrasena) {
+      return Response.json(
+        { success: false, message: "Correo y nueva contraseña requeridos" },
+        { status: 400 }
+      );
+    }
+
+    if (nuevaContrasena.length < 6) {
+      return Response.json(
+        { success: false, message: "La contraseña debe tener al menos 6 caracteres" },
+        { status: 400 }
+      );
+    }
+
+    const conn = await pool("admin").getConnection();
+
+    // Verifica que el correo exista
+    const rows = await conn.query(
+      `SELECT id_cliente FROM cliente WHERE correo = ? LIMIT 1`,
+      [correo]
+    );
+
+    if (!rows || rows.length === 0) {
+      conn.release();
+      return Response.json(
+        { success: false, message: "Correo no encontrado" },
+        { status: 404 }
+      );
+    }
+
+    const hash = await bcrypt.hash(nuevaContrasena, 10);
+
+    await conn.query(
+      `UPDATE cliente SET contraseña = ? WHERE correo = ?`,
+      [hash, correo]
+    );
+    conn.release();
+
+    return Response.json({
+      success: true,
+      message: "Contraseña actualizada correctamente",
+    });
+
+  } catch (error) {
+    console.error("Error en PUT /api/login:", error);
     return Response.json(
       { success: false, message: "Error en el servidor" },
       { status: 500 }

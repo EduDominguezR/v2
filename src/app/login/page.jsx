@@ -1,126 +1,177 @@
 "use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function LoginPage() {
-  const [usuario, setUsuario] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
 
-  const handleSubmit = async (e) => {
+  const [showChangePass, setShowChangePass] = useState(false);
+  const [changePassData, setChangePassData] = useState({
+    email: "",
+    nuevaContrasena: "",
+    confirmarContrasena: "",
+  });
+
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleLogin = (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    console.log("Login:", formData);
+  };
 
-    try {
-      // Login de prueba para admin
-      if (usuario === "admin" && password === "admin123") {
-        const adminFake = {
-          id: 1,
-          nombre: "Administrador",
-          usuario: "admin",
-          correo: "admin@spookycookie.com",
-          rol: "admin",
-        };
+  const handleChangePassInput = (e) =>
+    setChangePassData({ ...changePassData, [e.target.name]: e.target.value });
 
-        const token = btoa(
-          JSON.stringify({
-            rol: adminFake.rol,
-            timestamp: Date.now(),
-          })
-        );
+  const handleChangePassword = (e) => {
+    e.preventDefault();
 
-        localStorage.setItem("token", token);
-        localStorage.setItem("usuario", JSON.stringify(adminFake));
-        router.push("/admin/dashboard");
-        return;
-      }
-
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ usuario, password }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        const rol = data.cliente?.rol;
-        const token = btoa(
-          JSON.stringify({
-            rol,
-            timestamp: Date.now(),
-          })
-        );
-
-        localStorage.setItem("token", token);
-        localStorage.setItem("usuario", JSON.stringify(data.cliente));
-
-        if (data.cliente?.rol === "admin") {
-          router.push("/admin/dashboard");
-        } else {
-          router.push("/");
-        }
-      } else {
-        alert(data.message || "Credenciales incorrectas");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error al iniciar sesión");
-    } finally {
-      setIsLoading(false);
+    if (changePassData.nuevaContrasena !== changePassData.confirmarContrasena) {
+      alert("Las contraseñas no coinciden");
+      return;
     }
+
+   const handleChangePassword = async (e) => {
+  e.preventDefault();
+
+  if (changePassData.nuevaContrasena !== changePassData.confirmarContrasena) {
+    alert("Las contraseñas no coinciden");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/login", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        correo: changePassData.email,
+        nuevaContrasena: changePassData.nuevaContrasena,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      alert("Contraseña actualizada correctamente");
+      setShowChangePass(false);
+      setChangePassData({ email: "", nuevaContrasena: "", confirmarContrasena: "" });
+    } else {
+      alert(data.message || "Error al cambiar contraseña");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Error de conexión");
+  }
+};
   };
 
   return (
-    <div>
-      <form className="login-form" onSubmit={handleSubmit}>
-        <h2>
-          Inicia Sesión <span role="img" aria-label="cookie"></span>
-        </h2>
-        <h1>Spooky Cookie</h1>
+    <div className="login-page-wrapper">
+      <form className="login-form" onSubmit={handleLogin}>
+        <h2>Bienvenido</h2>
+        <h1>Iniciar sesión</h1>
 
         <input
-          type="text"
-          placeholder="Usuario o correo"
-          value={usuario}
-          onChange={(e) => setUsuario(e.target.value)}
+          type="email"
+          name="email"
+          placeholder="Correo electrónico"
+          value={formData.email}
+          onChange={handleChange}
           required
-          disabled={isLoading}
         />
 
         <input
           type="password"
+          name="password"
           placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          value={formData.password}
+          onChange={handleChange}
           required
-          disabled={isLoading}
         />
 
         <div className="form-actions">
-          <button
-            className={`btn btn-primary ${isLoading ? "loading" : ""}`}
-            type="submit"
-            disabled={isLoading}
-          >
-            {isLoading ? "VERIFICANDO..." : "Entrar"}
+          <button type="submit" className="btn btn-primary">
+            Entrar
           </button>
 
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => router.push("/register")}
-            disabled={isLoading}
+            onClick={() => setShowChangePass(true)}
           >
-            ¿No tienes cuenta? Regístrate
+            Cambiar contraseña
           </button>
         </div>
-
-        <p style={{ marginTop: "12px", fontSize: "14px", opacity: 0.8 }}>
-          Admin de prueba: <strong>admin</strong> / <strong>admin123</strong>
-        </p>
       </form>
+
+      {showChangePass && (
+        <div className="edit-overlay">
+          <div className="edit-modal">
+            <div className="edit-modal-header">
+              <h2>Cambiar contraseña</h2>
+              <button
+                type="button"
+                className="edit-close-btn"
+                onClick={() => setShowChangePass(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="edit-form" onSubmit={handleChangePassword}>
+              <div className="edit-field">
+                <label htmlFor="cp-email">Correo electrónico</label>
+                <input
+                  id="cp-email"
+                  type="email"
+                  name="email"
+                  placeholder="tu@correo.com"
+                  value={changePassData.email}
+                  onChange={handleChangePassInput}
+                  required
+                />
+              </div>
+
+              <div className="edit-field">
+                <label htmlFor="cp-pass">Nueva contraseña</label>
+                <input
+                  id="cp-pass"
+                  type="password"
+                  name="nuevaContrasena"
+                  placeholder="Nueva contraseña"
+                  value={changePassData.nuevaContrasena}
+                  onChange={handleChangePassInput}
+                  required
+                />
+              </div>
+
+              <div className="edit-field">
+                <label htmlFor="cp-pass2">Confirmar contraseña</label>
+                <input
+                  id="cp-pass2"
+                  type="password"
+                  name="confirmarContrasena"
+                  placeholder="Confirmar contraseña"
+                  value={changePassData.confirmarContrasena}
+                  onChange={handleChangePassInput}
+                  required
+                />
+              </div>
+
+              <div className="edit-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowChangePass(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
